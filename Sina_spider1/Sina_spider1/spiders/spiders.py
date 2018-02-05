@@ -10,20 +10,14 @@ from Sina_spider1.items import InformationItem, TweetsItem, FollowsItem, FansIte
 class Spider(CrawlSpider):
     name = "sinaSpider"
     host = "http://weibo.cn"
-    # start_urls = [
-    #     1775506770
-    #     # , 5676304901, 5871897095, 2139359753, 5579672076, 2517436943, 5778999829, 5780802073, 2159807003,
-    #     # 1756807885, 3378940452, 5762793904, 1885080105, 5778836010, 5722737202, 3105589817, 5882481217, 5831264835,
-    #     # 2717354573, 3637185102, 1934363217, 5336500817, 1431308884, 5818747476, 5073111647, 5398825573, 2501511785,
-    # ]
-    scrawl_ID = set([1775506770,5678057879])  # 记录待爬的微博ID
-    finish_ID = set()  # 记录已爬的微博ID
+    start_urls = [
+        1775506770
+    ]
+    scrawl_ID = set(start_urls)  # 记录待爬的微博ID
 
     def start_requests(self):
         while self.scrawl_ID.__len__():
-            print(222222222222222222222222222)
             ID = self.scrawl_ID.pop()
-            self.finish_ID.add(ID)  # 加入已爬队列
             ID = str(ID)
             follows = []
             followsItems = FollowsItem()
@@ -39,8 +33,9 @@ class Spider(CrawlSpider):
             url_information0 = "https://weibo.cn/%s/profile" % ID
             yield Request(url=url_follows, meta={"item": followsItems, "result": follows},callback=self.parse3)  # 去爬关注人
             yield Request(url=url_fans, meta={"item": fansItems, "result": fans}, callback=self.parse3)  # 去爬粉丝
-            # yield Request(url=url_information0, meta={"ID": ID}, callback=self.parse0)  # 去爬个人信息
-            # yield Request(url=url_tweets, meta={"ID": ID}, callback=self.parse2)  # 去爬微博
+            yield Request(url=url_information0, meta={"ID": ID}, callback=self.parse0)  # 去爬个人信息
+            yield Request(url=url_tweets, meta={"ID": ID}, callback=self.parse2)  # 去爬微博
+
 
     def parse0(self, response):
         """ 抓取个人信息1 """
@@ -143,8 +138,7 @@ class Spider(CrawlSpider):
         url_next = selector.xpath(
             u'body/div[@class="pa" and @id="pagelist"]/form/div/a[text()="\u4e0b\u9875"]/@href').extract()
         if url_next:
-            pass
-            # yield Request(url=self.host + url_next[0], meta={"ID": response.meta["ID"]}, callback=self.parse2)
+            yield Request(url=self.host + url_next[0], meta={"ID": response.meta["ID"]}, callback=self.parse2)
 
     def parse3(self, response):
         """ 抓取关注或粉丝 """
@@ -157,14 +151,25 @@ class Spider(CrawlSpider):
             elem = re.findall('uid=(\d+)', elem)
             if elem:
                 response.meta["result"].append(elem[0])
-                ID = int(elem[0])
-                if ID not in self.finish_ID:  # 新的ID，如果未爬则加入待爬队列
-                    self.scrawl_ID.add(ID)
-        print(11111,self.scrawl_ID)
-        # url_next = selector.xpath(
-        #     u'body//div[@class="pa" and @id="pagelist"]/form/div/a[text()="\u4e0b\u9875"]/@href').extract()
-        # if url_next:
-            # yield Request(url=self.host + url_next[0], meta={"item": items, "result": response.meta["result"]},
-            #               callback=self.parse3)
-        # else:  # 如果没有下一页即获取完毕
-        yield items
+                ID = str(elem[0])
+                follows = []
+                followsItems = FollowsItem()
+                followsItems["_id"] = ID
+                followsItems["follows"] = follows
+                fans = []
+                fansItems = FansItem()
+                fansItems["_id"] = ID
+                fansItems["fans"] = fans
+                url_follows = "http://weibo.cn/%s/follow" % ID
+                url_fans = "http://weibo.cn/%s/fans" % ID
+                url_tweets = "http://weibo.cn/%s/profile?filter=1&page=1" % ID
+                url_information0 = "https://weibo.cn/%s/profile" % ID
+                yield Request(url=url_follows, meta={"item": followsItems, "result": follows},callback=self.parse3)  # 去爬关注人
+                yield Request(url=url_fans, meta={"item": fansItems, "result": fans}, callback=self.parse3)  # 去爬粉丝
+        url_next = selector.xpath(
+            u'body//div[@class="pa" and @id="pagelist"]/form/div/a[text()="\u4e0b\u9875"]/@href').extract()
+        if url_next:
+            yield Request(url=self.host + url_next[0], meta={"item": items, "result": response.meta["result"]},
+                          callback=self.parse3)
+        else:  # 如果没有下一页即获取完毕
+            yield items
